@@ -201,7 +201,6 @@
   <svg class="ring" viewBox="0 0 280 280">
     <circle class="ring-bg" cx="140" cy="140" r="126"/>
     <circle class="ring-progress" id="ring" cx="140" cy="140" r="126"
-      stroke-dasharray="792"
       stroke-dashoffset="0"/>
   </svg>
   <div class="ring-center">
@@ -233,7 +232,8 @@
     long:  { label: '長休憩',    secs: 15 * 60, colorVar: '--long-color',  bgVar: '--bg-long'  },
   };
 
-  const CIRCUMFERENCE = 2 * Math.PI * 126; // ≈792
+  const CIRCUMFERENCE = 2 * Math.PI * 126; // ≈791.68
+  ring.setAttribute('stroke-dasharray', CIRCUMFERENCE);
 
   let mode = 'work';
   let remaining = MODES.work.secs;
@@ -355,6 +355,10 @@
         }
       } else {
         showMsg('▶ 作業を再開しましょう！');
+        if (mode === 'long') {
+          pomodorosDone = 0;
+          updateSessionDots();
+        }
         applyMode('work');
       }
     }
