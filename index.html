@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ポモドーロタイマー</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --work-color: #e74c3c;
+      --short-color: #27ae60;
+      --long-color: #2980b9;
+      --bg-work: #2c1810;
+      --bg-short: #0d2818;
+      --bg-long: #0a1a2e;
+      --current: var(--work-color);
+      --bg-current: var(--bg-work);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-current);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.6s ease;
+      user-select: none;
+    }
+
+    h1 {
+      font-size: 1.1rem;
+      letter-spacing: 0.2em;
+      opacity: 0.6;
+      margin-bottom: 2.5rem;
+      text-transform: uppercase;
+    }
+
+    /* Mode tabs */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .tab {
+      padding: 0.4rem 1.2rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: transparent;
+      color: rgba(255,255,255,0.5);
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: var(--current);
+      border-color: var(--current);
+      color: #fff;
+    }
+
+    /* Ring */
+    .ring-wrap {
+      position: relative;
+      width: 280px;
+      height: 280px;
+      margin-bottom: 2.5rem;
+    }
+
+    svg.ring {
+      transform: rotate(-90deg);
+      width: 100%;
+      height: 100%;
+    }
+
+    .ring-bg { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 8; }
+    .ring-progress {
+      fill: none;
+      stroke: var(--current);
+      stroke-width: 8;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear, stroke 0.4s;
+    }
+
+    .ring-center {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    #display {
+      font-size: 4rem;
+      font-weight: 200;
+      letter-spacing: 0.05em;
+      line-height: 1;
+    }
+
+    .ring-label {
+      font-size: 0.75rem;
+      opacity: 0.5;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-top: 0.4rem;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .btn-main {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      border: 2px solid var(--current);
+      background: var(--current);
+      color: #fff;
+      font-size: 1.8rem;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-main:hover { opacity: 0.85; transform: scale(1.05); }
+    .btn-main:active { transform: scale(0.96); }
+
+    .btn-icon {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.25);
+      background: transparent;
+      color: rgba(255,255,255,0.6);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn-icon:hover { border-color: rgba(255,255,255,0.6); color: #fff; }
+
+    /* Sessions */
+    .sessions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      transition: background 0.3s;
+    }
+    .dot.done { background: var(--current); }
+
+    .session-label {
+      font-size: 0.78rem;
+      opacity: 0.4;
+      margin-left: 0.5rem;
+      letter-spacing: 0.1em;
+    }
+
+    /* Notification badge */
+    #status-msg {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 0.7rem 1.5rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s;
+      opacity: 0;
+      pointer-events: none;
+    }
+    #status-msg.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🍅 ポモドーロタイマー</h1>
+
+<div class="tabs">
+  <button class="tab active" data-mode="work">作業</button>
+  <button class="tab" data-mode="short">小休憩</button>
+  <button class="tab" data-mode="long">長休憩</button>
+</div>
+
+<div class="ring-wrap">
+  <svg class="ring" viewBox="0 0 280 280">
+    <circle class="ring-bg" cx="140" cy="140" r="126"/>
+    <circle class="ring-progress" id="ring" cx="140" cy="140" r="126"
+      stroke-dasharray="792"
+      stroke-dashoffset="0"/>
+  </svg>
+  <div class="ring-center">
+    <div id="display">25:00</div>
+    <div class="ring-label" id="mode-label">作業時間</div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn-icon" id="btn-skip" title="スキップ">⏭</button>
+  <button class="btn-main" id="btn-play">▶</button>
+  <button class="btn-icon" id="btn-reset" title="リセット">↺</button>
+</div>
+
+<div class="sessions" id="session-dots">
+  <div class="dot" id="d1"></div>
+  <div class="dot" id="d2"></div>
+  <div class="dot" id="d3"></div>
+  <div class="dot" id="d4"></div>
+  <span class="session-label" id="session-text">0 / 4 ポモドーロ</span>
+</div>
+
+<div id="status-msg"></div>
+
+<script>
+  const MODES = {
+    work:  { label: '作業時間',  secs: 25 * 60, colorVar: '--work-color',  bgVar: '--bg-work'  },
+    short: { label: '小休憩',    secs:  5 * 60, colorVar: '--short-color', bgVar: '--bg-short' },
+    long:  { label: '長休憩',    secs: 15 * 60, colorVar: '--long-color',  bgVar: '--bg-long'  },
+  };
+
+  const CIRCUMFERENCE = 2 * Math.PI * 126; // ≈792
+
+  let mode = 'work';
+  let remaining = MODES.work.secs;
+  let total = MODES.work.secs;
+  let running = false;
+  let intervalId = null;
+  let pomodorosDone = 0;
+
+  const display = document.getElementById('display');
+  const modeLabel = document.getElementById('mode-label');
+  const ring = document.getElementById('ring');
+  const btnPlay = document.getElementById('btn-play');
+  const btnReset = document.getElementById('btn-reset');
+  const btnSkip = document.getElementById('btn-skip');
+  const statusMsg = document.getElementById('status-msg');
+  const sessionText = document.getElementById('session-text');
+
+  // Audio context for beep
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  function beep(freq, duration, type = 'sine') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  }
+
+  function playFinishSound() {
+    beep(880, 0.15);
+    setTimeout(() => beep(1100, 0.15), 200);
+    setTimeout(() => beep(1320, 0.4), 400);
+  }
+
+  function playTickSound() {
+    beep(440, 0.05, 'square');
+  }
+
+  function applyMode(m) {
+    mode = m;
+    const cfg = MODES[m];
+    remaining = cfg.secs;
+    total = cfg.secs;
+
+    // Update CSS vars
+    document.documentElement.style.setProperty('--current', `var(${cfg.colorVar})`);
+    document.body.style.background = `var(${cfg.bgVar})`;
+
+    // Update tabs
+    document.querySelectorAll('.tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.mode === m));
+
+    modeLabel.textContent = cfg.label;
+    updateDisplay();
+    updateRing();
+  }
+
+  function fmt(s) {
+    const m = String(Math.floor(s / 60)).padStart(2, '0');
+    const sec = String(s % 60).padStart(2, '0');
+    return `${m}:${sec}`;
+  }
+
+  function updateDisplay() {
+    display.textContent = fmt(remaining);
+    document.title = `${fmt(remaining)} — ${MODES[mode].label}`;
+  }
+
+  function updateRing() {
+    const frac = remaining / total;
+    const offset = CIRCUMFERENCE * (1 - frac);
+    ring.style.strokeDashoffset = offset;
+  }
+
+  function updateSessionDots() {
+    for (let i = 1; i <= 4; i++) {
+      document.getElementById(`d${i}`).classList.toggle('done', i <= pomodorosDone);
+    }
+    sessionText.textContent = `${pomodorosDone} / 4 ポモドーロ`;
+  }
+
+  function showMsg(text) {
+    statusMsg.textContent = text;
+    statusMsg.classList.add('show');
+    clearTimeout(statusMsg._t);
+    statusMsg._t = setTimeout(() => statusMsg.classList.remove('show'), 3000);
+  }
+
+  function tick() {
+    remaining--;
+    updateDisplay();
+    updateRing();
+
+    // Tick sound in last 5s of work
+    if (mode === 'work' && remaining <= 5 && remaining > 0) {
+      playTickSound();
+    }
+
+    if (remaining <= 0) {
+      clearInterval(intervalId);
+      running = false;
+      btnPlay.textContent = '▶';
+      playFinishSound();
+
+      if (mode === 'work') {
+        pomodorosDone = (pomodorosDone % 4) + 1;
+        updateSessionDots();
+        if (pomodorosDone % 4 === 0) {
+          showMsg('🎉 4ポモドーロ達成！長休憩にしましょう');
+          applyMode('long');
+        } else {
+          showMsg('✅ お疲れ様！5分休憩しましょう');
+          applyMode('short');
+        }
+      } else {
+        showMsg('▶ 作業を再開しましょう！');
+        applyMode('work');
+      }
+    }
+  }
+
+  function togglePlay() {
+    audioCtx.resume(); // unlock audio
+    if (running) {
+      clearInterval(intervalId);
+      running = false;
+      btnPlay.textContent = '▶';
+    } else {
+      running = true;
+      btnPlay.textContent = '⏸';
+      intervalId = setInterval(tick, 1000);
+    }
+  }
+
+  function reset() {
+    clearInterval(intervalId);
+    running = false;
+    btnPlay.textContent = '▶';
+    remaining = total;
+    updateDisplay();
+    updateRing();
+  }
+
+  function skip() {
+    clearInterval(intervalId);
+    running = false;
+    btnPlay.textContent = '▶';
+    remaining = 0;
+    tick(); // trigger finish logic
+  }
+
+  // Events
+  btnPlay.addEventListener('click', togglePlay);
+  btnReset.addEventListener('click', reset);
+  btnSkip.addEventListener('click', skip);
+
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      clearInterval(intervalId);
+      running = false;
+      btnPlay.textContent = '▶';
+      applyMode(tab.dataset.mode);
+    });
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+    if (e.code === 'KeyR') reset();
+  });
+
+  // Init
+  applyMode('work');
+  updateSessionDots();
+</script>
+</body>
+</html>
